@@ -1,4 +1,4 @@
-# Watch a ConvNet Learn to Distinguish Circles and Squares
+# Watch a ConvNet Learn to Distinguish Circles from Squares
 
 ![Learning visualization](images/convnet_learning.gif?raw=true)
 
