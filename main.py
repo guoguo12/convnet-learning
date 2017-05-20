@@ -7,17 +7,17 @@ import tensorflow as tf
 import dataset
 
 CLASSES = 2
-EGS_PER_CLASS = 2000
+EGS_PER_CLASS = 4000
 
 IMAGE_SIZE = 28
-FILTER_SIZE = 20
+FILTER_SIZE = 22
 
 BATCH_SIZE = 10
-TRAIN_STEPS = 2000
-STEPS_PER_DRAW = 50
+TRAIN_STEPS = 2500
+STEPS_PER_DRAW = 25
 
-LEARNING_RATES = np.logspace(-3, 3, num=7).ravel()
-MOMENTUMS = np.linspace(0, 1, num=5).ravel()
+LEARNING_RATE = 0.1
+MOMENTUM = 0.75
 
 
 def get_graph(lr, momentum, scope_name):
@@ -61,63 +61,40 @@ def gen_batch(X_train, y_train):
         i += BATCH_SIZE
     yield from gen_batch(X_train, y_train)
 
+lr, momentum = LEARNING_RATE, MOMENTUM
 with tf.Session() as sess:
     np.random.seed(42)
 
     X_train, X_test, y_train, y_test = dataset.load(egs_per_class=EGS_PER_CLASS)
 
-    all_results = []
-    for lr in LEARNING_RATES:
-        for momentum in MOMENTUMS:
-            scope_name = 'lr{}-momentum{}'.format(lr, momentum)
-            X, y, W, y_hat, loss, train_step, accuracy = get_graph(
-                lr, momentum, scope_name)
+    scope_name = 'lr{}-momentum{}'.format(lr, momentum)
+    X, y, W, y_hat, loss, train_step, accuracy = get_graph(
+        lr, momentum, scope_name)
 
-            sess.run(tf.global_variables_initializer())
+    sess.run(tf.global_variables_initializer())
 
-            results = []  # Results for this optimizer
-            batches = gen_batch(X_train, y_train)
-            for i in range(TRAIN_STEPS):
-                X_batch, y_batch = next(batches)
-                if i % STEPS_PER_DRAW == 0:
-                    curr_W, curr_accuracy = sess.run(
-                        [W, accuracy], feed_dict={X: X_test, y: y_test})
-                    results.append(curr_W)
-#                    print('Iteration {} for {} has accuracy {:.3f}'.format(
-#                        i, scope_name, curr_accuracy))
-                sess.run(train_step, feed_dict={X: X_batch, y: y_batch})
-            all_results.append(results)
+    results = []  # Results for this optimizer
+    batches = gen_batch(X_train, y_train)
+    for i in range(TRAIN_STEPS):
+        X_batch, y_batch = next(batches)
+        if i % STEPS_PER_DRAW == 0:
+            results.append(
+                sess.run(W, feed_dict={X: X_test, y: y_test}))
+            print('Iteration {} for {}'.format(i, scope_name))
+        sess.run(train_step, feed_dict={X: X_batch, y: y_batch})
 
-            print('Finished {}'.format(scope_name))
+    print('Finished {}'.format(scope_name))
 
-for draw_step, draw_step_results in enumerate(zip(*all_results)):
-    fig = plt.figure()
+for draw_step, curr_W in enumerate(results):
+    fig = plt.figure(figsize=(4, 4))
     step = draw_step * STEPS_PER_DRAW
 
-    i = 0
-    for lr in LEARNING_RATES:
-        for momentum in MOMENTUMS:
-            curr_W = draw_step_results[i].reshape([FILTER_SIZE, FILTER_SIZE])
-            ax = fig.add_subplot(len(LEARNING_RATES), len(MOMENTUMS), i + 1)
-            ax.imshow(curr_W, cmap='Blues', interpolation='nearest')
+    curr_W = curr_W.reshape([FILTER_SIZE, FILTER_SIZE])
+    ax = fig.add_subplot(111)
+    ax.set_axis_off()
+    ax.imshow(curr_W, cmap='Blues', interpolation='nearest')
 
-            ax.get_xaxis().set_ticks([])
-            ax.get_yaxis().set_ticks([])
-            if i // len(MOMENTUMS) == 0:
-                ax.xaxis.set_label_position('top')
-                ax.set_xlabel(momentum, fontsize=10)
-            if i % len(MOMENTUMS) == 0:
-                ax.set_ylabel('{:.0E}'.format(lr), fontsize=10)
-
-            i += 1
-
-    fig.text(0.5, 0.98, 'Momentum Amount',
-             horizontalalignment='center', verticalalignment='top')
-    fig.text(0.5, 0.02, 'Iteration {}'.format(step),
-             horizontalalignment='center', verticalalignment='top')
-    fig.text(0.02, 0.5, 'Learning Rate',
-             horizontalalignment='left', verticalalignment='center',
-             rotation='vertical')
-
+    plt.tight_layout()
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
     plt.savefig('frame-{:03}.png'.format(draw_step))
     plt.close(fig)
